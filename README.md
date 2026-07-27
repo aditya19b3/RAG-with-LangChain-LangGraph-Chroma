@@ -45,7 +45,7 @@ Browser UI  →  Express API  →  LangGraph (Corrective RAG)
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/RAG-with-LangChain-LangGraph-Chroma.git
+git clone https://github.com/aditya19b3/RAG-with-LangChain-LangGraph-Chroma.git
 cd RAG-with-LangChain-LangGraph-Chroma
 ```
 
