@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IntellectRAG • AI Knowledge Hub</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom Styling -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Background Glow Effects -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon"><i class="fa-solid fa-brain-circuit"></i></div>
+        <div class="logo-text">
+          <h1>IntellectRAG</h1>
+          <span class="subtext">ChromaDB Powered AI Knowledge System</span>
+        </div>
+      </div>
+      <div class="header-status">
+        <div id="chroma-status" class="status-badge status-connected">
+          <span class="status-dot"></span>
+          <span class="status-text">Chroma DB Active</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="app-layout">
+      <!-- Sidebar / Control Dashboard -->
+      <aside class="app-sidebar">
+        
+        <!-- Security Scoping Panel -->
+        <section class="glass-panel security-panel">
+          <h2 class="panel-title"><i class="fa-solid fa-shield-halved"></i> Access Scope</h2>
+          <p class="panel-desc">Configure tenant & role parameters to test secure ACL filtering.</p>
+          <div class="form-group">
+            <label for="scope-tenant"><i class="fa-solid fa-building"></i> Tenant ID</label>
+            <select id="scope-tenant" class="form-select">
+              <option value="company_a" selected>company_a (Default)</option>
+              <option value="company_b">company_b (Alternative)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="scope-role"><i class="fa-solid fa-user-shield"></i> User Role</label>
+            <select id="scope-role" class="form-select">
+              <option value="member" selected>member</option>
+              <option value="admin">admin</option>
+              <option value="guest">guest (Unauthorized)</option>
+            </select>
+          </div>
+        </section>
+
+        <!-- Document Manager -->
+        <section class="glass-panel doc-manager">
+          <div class="panel-header-row">
+            <h2 class="panel-title"><i class="fa-solid fa-folder-open"></i> Knowledge Base</h2>
+            <button id="btn-reindex" class="btn btn-secondary btn-sm" title="Synchronize files to ChromaDB">
+              <i class="fa-solid fa-rotate"></i> Sync DB
+            </button>
+          </div>
+          <p class="panel-desc">Upload documents (PDF, DOCX, TXT, MD, CSV, JSON, code files, etc.) — they are embedded into ChromaDB automatically.</p>
+
+          <!-- Uploader -->
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" hidden>
+            <div class="upload-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+            <p class="upload-text">Drag & drop files here or <span class="browse-link">browse</span></p>
+            <span class="upload-limits">Max size 10MB</span>
+          </div>
+
+          <!-- Document List -->
+          <div class="document-list-container">
+            <h3>Indexed Documents (<span id="doc-count">0</span>)</h3>
+            <ul class="document-list" id="document-list">
+              <!-- Dynamically populated -->
+              <li class="doc-item-skeleton"></li>
+              <li class="doc-item-skeleton"></li>
+            </ul>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Main Panel / QA Interface -->
+      <main class="app-main">
+        <!-- QA Query Panel -->
+        <section class="glass-panel qa-panel">
+          <h2 class="panel-title"><i class="fa-solid fa-magnifying-glass"></i> Query Knowledge Base</h2>
+          <p class="panel-desc">Ask questions grounded on your uploaded documents. Responses will be retrieved, graded, and synthesized.</p>
+
+          <!-- Suggestion Chips -->
+          <div class="suggestions-container">
+            <span class="suggestion-label">Suggested Questions:</span>
+            <div class="suggestion-chips">
+              <button class="chip" data-question="What is the refund window?">Refund policy?</button>
+              <button class="chip" data-question="What are the yearly subscription pricing details?">Subscription costs?</button>
+              <button class="chip" data-question="Who should I contact for billing support?">Billing support?</button>
+            </div>
+          </div>
+
+          <!-- Search Input -->
+          <form id="qa-form" class="qa-form">
+            <div class="search-wrapper">
+              <div class="search-icon-left"><i class="fa-solid fa-quote-left"></i></div>
+              <input type="text" id="query-input" placeholder="Type your question here (e.g. What is the refund policy?)" required autocomplete="off">
+              <button type="submit" id="btn-submit" class="btn btn-primary">
+                <span>Ask AI</span> <i class="fa-solid fa-paper-plane"></i>
+              </button>
+            </div>
+          </form>
+
+          <!-- Result Area -->
+          <div class="result-container hidden" id="result-container">
+            
+            <!-- Skeleton Loader -->
+            <div class="loader-skeleton hidden" id="result-skeleton">
+              <div class="skeleton-title"></div>
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line" style="width: 70%;"></div>
+              <div class="skeleton-sources"></div>
+            </div>
+
+            <!-- Actual Answer Card -->
+            <div class="answer-card" id="answer-card">
+              <div class="answer-header">
+                <span class="answer-badge"><i class="fa-solid fa-robot"></i> AI Response</span>
+                <span class="timing-badge" id="timing-badge">Corrective RAG</span>
+              </div>
+              <div class="answer-body" id="answer-text">
+                <!-- Answer text -->
+              </div>
+              <div class="sources-section">
+                <h4><i class="fa-solid fa-link"></i> Sources Cited:</h4>
+                <div class="sources-list" id="sources-list">
+                  <!-- Sources tags -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast hidden">
+    <div class="toast-content">
+      <i class="fa-solid fa-circle-info toast-icon"></i>
+      <span id="toast-message">Notification message</span>
+    </div>
+  </div>
+
+  <!-- Main JavaScript Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+# Dependency directories
+node_modules/
+rag-app/node_modules/
+
+# Build outputs
+dist/
+rag-app/dist/
+*.tsbuildinfo
+
+# ChromaDB persistent data (Docker volume)
+chroma-data/
+
+# Application indexes & local storage
+rag-app/index/
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+rag-app/.env
+
+# Uploaded user documents (optional — remove this line if you want to commit sample docs)
+# rag-app/knowledge-base/*
+# !rag-app/knowledge-base/.gitkeep
+
+# Logs and OS files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test / coverage
+coverage/
+.nyc_output/
