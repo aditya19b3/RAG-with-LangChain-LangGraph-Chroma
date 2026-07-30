@@ -58,7 +58,7 @@ async function signOut() {
 function requireLogin() {
   auth.onAuthStateChanged((user) => {
     if (!user) {
-      window.location.href = '/public/login.html';
+      window.location.href = '/login.html';
     }
   });
 }

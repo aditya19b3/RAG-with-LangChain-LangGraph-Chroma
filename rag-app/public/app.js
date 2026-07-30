@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
   auth.onAuthStateChanged(async (user) => {
     if (!user) {
       // Not signed in — redirect to login
-      window.location.href = '/public/login.html';
+      window.location.href = '/login.html';
       return;
     }
 
