@@ -1,10 +1,13 @@
 import { OpenAIEmbeddings } from '@langchain/openai';
 
-export const embeddings = new OpenAIEmbeddings({
-  model: 'text-embedding-3-small',
-});
+let _embeddings: OpenAIEmbeddings | null = null;
 
 export function getOpenAIEmbeddings(): OpenAIEmbeddings {
-  return embeddings;
+  if (!_embeddings) {
+    _embeddings = new OpenAIEmbeddings({
+      model: 'text-embedding-3-small',
+    });
+  }
+  return _embeddings;
 }
 
