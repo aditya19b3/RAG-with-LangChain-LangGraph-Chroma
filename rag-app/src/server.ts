@@ -12,8 +12,7 @@ import { isLoadableExtension } from './loaders/loadDocuments.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const KB_DIR = path.resolve('knowledge-base');
-const PUBLIC_DIR = path.resolve('public');
+import { KB_DIR, PUBLIC_DIR } from './utils/paths.js';
 
 app.use(cors());
 app.use(express.json());
@@ -240,28 +239,32 @@ app.get('*splat', (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
 });
 
-app.listen(PORT, async () => {
-  console.log(`\n🚀 RAG API Server listening at http://localhost:${PORT}`);
-  console.log(`📂 Knowledge Base directory: ${KB_DIR}`);
-  console.log(`🌐 Static Frontend directory: ${PUBLIC_DIR}`);
-  console.log(`🗄️  ChromaDB URL: ${process.env.CHROMA_URL ?? 'http://localhost:8000'}`);
+if (!process.env.VERCEL) {
+  app.listen(PORT, async () => {
+    console.log(`\n🚀 RAG API Server listening at http://localhost:${PORT}`);
+    console.log(`📂 Knowledge Base directory: ${KB_DIR}`);
+    console.log(`🌐 Static Frontend directory: ${PUBLIC_DIR}`);
+    console.log(`🗄️  ChromaDB URL: ${process.env.CHROMA_URL ?? 'http://localhost:8000'}`);
 
-  const healthy = await checkChromaHealth();
-  if (!healthy) {
-    console.warn('\n⚠️  ChromaDB is not reachable. Start it with: docker compose up -d\n');
-    return;
-  }
-
-  const stats = await getCollectionStats();
-  console.log(`✅ ChromaDB connected — collection '${stats.collectionName}' (${stats.count} chunks)\n`);
-
-  if (!stats.exists || stats.count === 0) {
-    console.log('[API Server] Chroma collection is empty. Running initial index from knowledge-base...');
-    try {
-      const result = await runIndexing();
-      console.log(`[API Server] Initial index complete: ${result.chunkCount} chunks in '${result.collectionName}'.\n`);
-    } catch (error) {
-      console.error('[API Server] Initial indexing failed:', (error as Error).message);
+    const healthy = await checkChromaHealth();
+    if (!healthy) {
+      console.warn('\n⚠️  ChromaDB is not reachable. Start it with: docker compose up -d\n');
+      return;
     }
-  }
-});
+
+    const stats = await getCollectionStats();
+    console.log(`✅ ChromaDB connected — collection '${stats.collectionName}' (${stats.count} chunks)\n`);
+
+    if (!stats.exists || stats.count === 0) {
+      console.log('[API Server] Chroma collection is empty. Running initial index from knowledge-base...');
+      try {
+        const result = await runIndexing();
+        console.log(`[API Server] Initial index complete: ${result.chunkCount} chunks in '${result.collectionName}'.\n`);
+      } catch (error) {
+        console.error('[API Server] Initial indexing failed:', (error as Error).message);
+      }
+    }
+  });
+}
+
+export default app;

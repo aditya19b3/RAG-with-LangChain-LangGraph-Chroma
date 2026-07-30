@@ -3,7 +3,7 @@ import path from 'node:path';
 import { BM25Retriever } from '@langchain/community/retrievers/bm25';
 import { Document } from '@langchain/core/documents';
 
-const CHUNKS_PATH = path.resolve('./index/chunks.json');
+import { CHUNKS_PATH } from '../utils/paths.js';
 
 /**
  * Saves document chunks to disk to persist the keyword index data.

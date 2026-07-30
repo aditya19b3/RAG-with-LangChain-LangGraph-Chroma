@@ -15,7 +15,7 @@ import { resilient } from './utils/resilience.js';
 import { correctiveRag } from './graph/correctiveRag.js';
 import { streamAnswer } from './utils/stream.js';
 
-const KB_DIR = path.resolve('./knowledge-base');
+import { KB_DIR, CHUNKS_PATH } from './utils/paths.js';
 
 /**
  * Creates mock files in the knowledge-base directory if it is empty,
@@ -202,7 +202,7 @@ async function main() {
     try {
       // Check if we need to index first (e.g. if chunks file doesn't exist)
       try {
-        await fs.access(path.resolve('./index/chunks.json'));
+        await fs.access(CHUNKS_PATH);
       } catch {
         console.log('Keyword index not found on disk. Initiating fast auto-indexing...');
         await index();
