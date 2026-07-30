@@ -1,12 +1,13 @@
 import { ChatOpenAI } from '@langchain/openai';
 
 // Pre-configured resilient ChatOpenAI instance
-export const getResilientLLM = (modelName = 'gpt-4o-mini', temperature = 0.2): ChatOpenAI => {
+export const getResilientLLM = (modelName = 'gpt-4o-mini', temperature = 0.2, apiKey?: string): ChatOpenAI => {
   return new ChatOpenAI({
     model: modelName,
     temperature,
     timeout: 15_000,     // Stalls after 15s
     maxRetries: 3,       // Auto-retries 429/5xx errors
+    openAIApiKey: apiKey || process.env.OPENAI_API_KEY,
   });
 };
 

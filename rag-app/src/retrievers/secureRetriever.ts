@@ -1,6 +1,6 @@
 import { Chroma } from '@langchain/community/vectorstores/chroma';
 import { Document } from '@langchain/core/documents';
-import { getStore } from '../vectorstore/chroma.js';
+import { getStore, ChromaStoreOptions } from '../vectorstore/chroma.js';
 
 export interface UserSession {
   id: string;
@@ -12,8 +12,8 @@ export interface UserSession {
  * Returns a retriever that is pre-filtered at the database level
  * to restrict chunks only to the user's tenantId and matching roles (ACL).
  */
-export async function retrieverForUser(user: UserSession, k = 20) {
-  const store = await getStore();
+export async function retrieverForUser(user: UserSession, k = 20, options: ChromaStoreOptions = {}) {
+  const store = await getStore(options);
 
   // Enforce metadata criteria inside Chroma's 'where' clause
   const filter = {

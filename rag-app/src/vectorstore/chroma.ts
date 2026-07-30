@@ -6,6 +6,10 @@ import { getOpenAIEmbeddings } from '../embeddings/openai.js';
 export interface ChromaStoreOptions {
   collectionName?: string;
   url?: string;
+  apiKey?: string;
+  tenant?: string;
+  database?: string;
+  openAIApiKey?: string;
 }
 
 export interface CollectionStats {
@@ -28,9 +32,9 @@ function getChromaUrl(options: ChromaStoreOptions = {}): string {
  * Returns a CloudClient when CHROMA_API_KEY is configured, otherwise a local ChromaClient.
  */
 export function getRawChromaClient(options: ChromaStoreOptions = {}): ChromaDbClient {
-  const apiKey = process.env.CHROMA_API_KEY;
-  const tenant = process.env.CHROMA_TENANT;
-  const database = process.env.CHROMA_DATABASE;
+  const apiKey = options.apiKey || process.env.CHROMA_API_KEY;
+  const tenant = options.tenant || process.env.CHROMA_TENANT;
+  const database = options.database || process.env.CHROMA_DATABASE;
 
   if (apiKey && apiKey !== '...') {
     console.log(`[Chroma] Connecting to Chroma Cloud (Tenant: ${tenant}, DB: ${database})...`);
@@ -43,16 +47,16 @@ export function getRawChromaClient(options: ChromaStoreOptions = {}): ChromaDbCl
   }
 
   const url = getChromaUrl(options);
-  console.log(`[Chroma] Connecting to local Chroma server at ${url}...`);
+  console.log(`[Chroma] Connecting to Chroma server at ${url}...`);
   return new ChromaClient({ path: url });
 }
 
 function getLangChainStoreOptions(options: ChromaStoreOptions = {}) {
   const collectionName = getCollectionName(options);
   const url = getChromaUrl(options);
-  const apiKey = process.env.CHROMA_API_KEY;
-  const tenant = process.env.CHROMA_TENANT;
-  const database = process.env.CHROMA_DATABASE;
+  const apiKey = options.apiKey || process.env.CHROMA_API_KEY;
+  const tenant = options.tenant || process.env.CHROMA_TENANT;
+  const database = options.database || process.env.CHROMA_DATABASE;
 
   if (apiKey && apiKey !== '...') {
     const client = new CloudClient({
@@ -87,7 +91,7 @@ export async function createChromaVectorStore(
   documents: Document[],
   options: ChromaStoreOptions = {}
 ): Promise<Chroma> {
-  const embeddings = getOpenAIEmbeddings();
+  const embeddings = getOpenAIEmbeddings(options.openAIApiKey);
   const storeOptions = getLangChainStoreOptions(options);
   const sanitized = documents.map(d => new Document({ pageContent: d.pageContent, metadata: sanitizeMetadata(d.metadata) }));
   const vectorStore = await Chroma.fromDocuments(sanitized, embeddings, storeOptions as any);
@@ -95,7 +99,7 @@ export async function createChromaVectorStore(
 }
 
 export async function getStore(options: ChromaStoreOptions = {}): Promise<Chroma> {
-  const embeddings = getOpenAIEmbeddings();
+  const embeddings = getOpenAIEmbeddings(options.openAIApiKey);
   const storeOptions = getLangChainStoreOptions(options);
   return Chroma.fromExistingCollection(embeddings, storeOptions as any);
 }

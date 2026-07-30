@@ -6,7 +6,7 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import { index, ask } from './index.js';
 import { UserSession } from './retrievers/secureRetriever.js';
-import { checkChromaHealth, getCollectionStats } from './vectorstore/chroma.js';
+import { checkChromaHealth, getCollectionStats, ChromaStoreOptions } from './vectorstore/chroma.js';
 import { isLoadableExtension } from './loaders/loadDocuments.js';
 
 const app = express();
@@ -47,9 +47,19 @@ const upload = multer({
   },
 });
 
-async function runIndexing(): Promise<{ chunkCount: number; collectionName: string }> {
-  await index();
-  const stats = await getCollectionStats();
+function getCredentials(req: express.Request): ChromaStoreOptions {
+  return {
+    openAIApiKey: (req.headers['x-openai-api-key'] as string) || undefined,
+    url: (req.headers['x-chroma-url'] as string) || undefined,
+    apiKey: (req.headers['x-chroma-api-key'] as string) || undefined,
+    tenant: (req.headers['x-chroma-tenant'] as string) || undefined,
+    database: (req.headers['x-chroma-database'] as string) || undefined,
+  };
+}
+
+async function runIndexing(options: ChromaStoreOptions = {}): Promise<{ chunkCount: number; collectionName: string }> {
+  await index(options);
+  const stats = await getCollectionStats(options);
   return { chunkCount: stats.count, collectionName: stats.collectionName };
 }
 
@@ -57,15 +67,16 @@ async function runIndexing(): Promise<{ chunkCount: number; collectionName: stri
  * GET /api/chroma/status
  * ChromaDB health and collection stats for the frontend / GUI verification.
  */
-app.get('/api/chroma/status', async (_req, res) => {
+app.get('/api/chroma/status', async (req, res) => {
   try {
-    const healthy = await checkChromaHealth();
-    const stats = healthy ? await getCollectionStats() : { exists: false, count: 0, collectionName: 'kb_collection' };
+    const credentials = getCredentials(req);
+    const healthy = await checkChromaHealth(credentials);
+    const stats = healthy ? await getCollectionStats(credentials) : { exists: false, count: 0, collectionName: 'kb_collection' };
 
     res.json({
       success: true,
       healthy,
-      url: process.env.CHROMA_URL ?? 'http://localhost:8000',
+      url: credentials.url ?? process.env.CHROMA_URL ?? 'http://localhost:8000',
       collection: stats,
     });
   } catch (error: any) {
@@ -104,7 +115,8 @@ app.post('/api/documents', (req, res) => {
     }
 
     try {
-      const healthy = await checkChromaHealth();
+      const credentials = getCredentials(req);
+      const healthy = await checkChromaHealth(credentials);
       if (!healthy) {
         return res.status(503).json({
           success: false,
@@ -113,7 +125,7 @@ app.post('/api/documents', (req, res) => {
       }
 
       console.log(`[API Server] File uploaded: ${req.file.filename}. Syncing to ChromaDB...`);
-      const { chunkCount, collectionName } = await runIndexing();
+      const { chunkCount, collectionName } = await runIndexing(credentials);
 
       res.json({
         success: true,
@@ -145,10 +157,11 @@ app.delete('/api/documents/:filename', async (req, res) => {
 
     await fs.unlink(resolvedPath);
 
-    const healthy = await checkChromaHealth();
+    const credentials = getCredentials(req);
+    const healthy = await checkChromaHealth(credentials);
     if (healthy) {
       console.log(`[API Server] Document deleted: ${filename}. Re-syncing ChromaDB...`);
-      const { chunkCount, collectionName } = await runIndexing();
+      const { chunkCount, collectionName } = await runIndexing(credentials);
       res.json({
         success: true,
         message: `Document '${filename}' deleted and ChromaDB updated (${chunkCount} chunks remaining).`,
@@ -169,9 +182,10 @@ app.delete('/api/documents/:filename', async (req, res) => {
   }
 });
 
-app.post('/api/index', async (_req, res) => {
+app.post('/api/index', async (req, res) => {
   try {
-    const healthy = await checkChromaHealth();
+    const credentials = getCredentials(req);
+    const healthy = await checkChromaHealth(credentials);
     if (!healthy) {
       return res.status(503).json({
         success: false,
@@ -180,7 +194,7 @@ app.post('/api/index', async (_req, res) => {
     }
 
     console.log('[API Server] Triggering manual knowledge base re-indexing...');
-    const { chunkCount, collectionName } = await runIndexing();
+    const { chunkCount, collectionName } = await runIndexing(credentials);
     res.json({
       success: true,
       message: `Knowledge base synced to ChromaDB (${chunkCount} chunks in '${collectionName}').`,
@@ -206,7 +220,8 @@ app.post('/api/query', async (req, res) => {
   };
 
   try {
-    const healthy = await checkChromaHealth();
+    const credentials = getCredentials(req);
+    const healthy = await checkChromaHealth(credentials);
     if (!healthy) {
       return res.status(503).json({
         success: false,
@@ -214,7 +229,7 @@ app.post('/api/query', async (req, res) => {
       });
     }
 
-    const stats = await getCollectionStats();
+    const stats = await getCollectionStats(credentials);
     if (!stats.exists || stats.count === 0) {
       return res.status(400).json({
         success: false,
@@ -223,7 +238,7 @@ app.post('/api/query', async (req, res) => {
     }
 
     console.log(`[API Server] Processing query: "${question}" for tenant "${user.tenantId}" (Role: ${user.roles[0]})`);
-    const response = await ask(question, user);
+    const response = await ask(question, user, credentials);
     res.json({
       success: true,
       answer: response.answer,

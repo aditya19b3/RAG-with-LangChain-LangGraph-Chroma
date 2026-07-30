@@ -62,6 +62,24 @@
           </div>
         </section>
 
+        <!-- Credentials Config Panel -->
+        <section class="glass-panel credentials-panel">
+          <h2 class="panel-title"><i class="fa-solid fa-key"></i> API Credentials</h2>
+          <p class="panel-desc">Provide your own credentials. Stored locally in your browser.</p>
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <label for="settings-openai-key"><i class="fa-solid fa-lock"></i> OpenAI API Key</label>
+            <input type="password" id="settings-openai-key" class="form-input" placeholder="sk-proj-...">
+          </div>
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <label for="settings-chroma-url"><i class="fa-solid fa-link"></i> Chroma URL</label>
+            <input type="text" id="settings-chroma-url" class="form-input" placeholder="http://localhost:8000">
+          </div>
+          <div class="form-group-row" style="display: flex; gap: 8px; margin-top: 10px;">
+            <button id="btn-save-credentials" class="btn btn-primary btn-sm" style="flex: 1; padding: 0.5rem 0.75rem; font-size: 0.8rem;">Save</button>
+            <button id="btn-clear-credentials" class="btn btn-secondary btn-sm" style="padding: 0.5rem 0.75rem; font-size: 0.8rem;">Clear</button>
+          </div>
+        </section>
+
         <!-- Document Manager -->
         <section class="glass-panel doc-manager">
           <div class="panel-header-row">

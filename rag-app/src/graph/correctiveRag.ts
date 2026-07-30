@@ -2,6 +2,7 @@ import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { Document } from '@langchain/core/documents';
 import { z } from 'zod';
 import { getResilientLLM } from '../utils/resilience.js';
+import { RunnableConfig } from '@langchain/core/runnables';
 
 // Shared state shape using LangGraph annotations
 export const GraphStateAnnotation = Annotation.Root({
@@ -60,12 +61,13 @@ const graderSchema = {
 /**
  * Grader node - grades candidate documents in a single structured batch call.
  */
-async function gradeDocuments(state: typeof GraphStateAnnotation.State) {
+async function gradeDocuments(state: typeof GraphStateAnnotation.State, config?: RunnableConfig) {
   if (state.documents.length === 0) {
     return { documents: [] };
   }
 
-  const llm = getResilientLLM('gpt-4o-mini', 0);
+  const apiKey = config?.configurable?.apiKey;
+  const llm = getResilientLLM('gpt-4o-mini', 0, apiKey);
   const grader = llm.withStructuredOutput(graderSchema as any, { name: 'grade_batch' });
 
 
@@ -94,8 +96,9 @@ async function gradeDocuments(state: typeof GraphStateAnnotation.State) {
 /**
  * Query transformer node - rewrites question for better search performance.
  */
-async function transformQuery(state: typeof GraphStateAnnotation.State) {
-  const llm = getResilientLLM('gpt-4o-mini', 0);
+async function transformQuery(state: typeof GraphStateAnnotation.State, config?: RunnableConfig) {
+  const apiKey = config?.configurable?.apiKey;
+  const llm = getResilientLLM('gpt-4o-mini', 0, apiKey);
   const res = await llm.invoke(
     `Rewrite this question to be clearer for document search. ` +
     `Return only the rewritten question.\nQuestion: ${state.question}`
@@ -108,8 +111,9 @@ import { reorderDocuments } from '../retrievers/rerank.js';
 /**
  * Answer generator node - synthesizes answer grounded strictly in retrieved chunks.
  */
-async function generate(state: typeof GraphStateAnnotation.State) {
-  const llm = getResilientLLM('gpt-4o-mini', 0.2);
+async function generate(state: typeof GraphStateAnnotation.State, config?: RunnableConfig) {
+  const apiKey = config?.configurable?.apiKey;
+  const llm = getResilientLLM('gpt-4o-mini', 0.2, apiKey);
 
   // Reorder documents placing most relevant at the edges to combat the "Lost in the Middle" problem
   const reorderedDocs = await reorderDocuments(state.documents);

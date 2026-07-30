@@ -5,6 +5,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const scopeTenant = document.getElementById('scope-tenant');
   const scopeRole = document.getElementById('scope-role');
   
+  const inputOpenAIKey = document.getElementById('settings-openai-key');
+  const inputChromaURL = document.getElementById('settings-chroma-url');
+  const btnSaveCredentials = document.getElementById('btn-save-credentials');
+  const btnClearCredentials = document.getElementById('btn-clear-credentials');
+  
   const btnReindex = document.getElementById('btn-reindex');
   const docCount = document.getElementById('doc-count');
   const documentList = document.getElementById('document-list');
@@ -30,6 +35,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Base API URL (relative since we serve frontend from Express)
   const API_BASE = '';
+
+  // Load and Get Dynamic Credentials from LocalStorage
+  function loadCredentials() {
+    inputOpenAIKey.value = localStorage.getItem('openai_api_key') || '';
+    inputChromaURL.value = localStorage.getItem('chroma_url') || '';
+  }
+
+  function getCredentialHeaders() {
+    const headers = {};
+    const openAIKey = localStorage.getItem('openai_api_key');
+    const chromaURL = localStorage.getItem('chroma_url');
+    
+    if (openAIKey) headers['X-OpenAI-API-Key'] = openAIKey;
+    if (chromaURL) headers['X-Chroma-URL'] = chromaURL;
+    
+    return headers;
+  }
 
   // Toast Notifications
   let toastTimeout;
@@ -87,7 +109,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Check ChromaDB connection status
   async function fetchChromaStatus() {
     try {
-      const res = await fetch(`${API_BASE}/api/chroma/status`);
+      const res = await fetch(`${API_BASE}/api/chroma/status`, {
+        headers: getCredentialHeaders()
+      });
       const data = await res.json();
 
       if (!data.success) throw new Error(data.error);
@@ -112,7 +136,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchDocuments() {
     try {
-      const res = await fetch(`${API_BASE}/api/documents`);
+      const res = await fetch(`${API_BASE}/api/documents`, {
+        headers: getCredentialHeaders()
+      });
       const data = await res.json();
       
       if (!data.success) throw new Error(data.error);
@@ -179,6 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch(`${API_BASE}/api/documents/${encodedFilename}`, {
         method: 'DELETE',
+        headers: getCredentialHeaders()
       });
       const data = await res.json();
       
@@ -206,6 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(`${API_BASE}/api/documents`, {
         method: 'POST',
         body: formData,
+        headers: getCredentialHeaders()
       });
       const data = await res.json();
 
@@ -234,6 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch(`${API_BASE}/api/index`, {
         method: 'POST',
+        headers: getCredentialHeaders()
       });
       const data = await res.json();
 
@@ -276,7 +305,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const startTime = performance.now();
       const res = await fetch(`${API_BASE}/api/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getCredentialHeaders()
+        },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
@@ -371,7 +403,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Credentials event listeners
+  btnSaveCredentials.addEventListener('click', () => {
+    localStorage.setItem('openai_api_key', inputOpenAIKey.value.trim());
+    localStorage.setItem('chroma_url', inputChromaURL.value.trim());
+    showToast('Credentials saved successfully!', 'success');
+    fetchChromaStatus();
+    fetchDocuments();
+  });
+
+  btnClearCredentials.addEventListener('click', () => {
+    localStorage.removeItem('openai_api_key');
+    localStorage.removeItem('chroma_url');
+    inputOpenAIKey.value = '';
+    inputChromaURL.value = '';
+    showToast('Credentials cleared!', 'info');
+    fetchChromaStatus();
+    fetchDocuments();
+  });
+
   // Initial Load
+  loadCredentials();
   fetchChromaStatus();
   fetchDocuments();
 });

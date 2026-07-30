@@ -6,7 +6,7 @@ import { Document } from '@langchain/core/documents';
 import { EnsembleRetriever } from 'langchain/retrievers/ensemble';
 import { loadFolder } from './loaders/loadDocuments.js';
 import { splitDocuments } from './splitters/splitDocuments.js';
-import { resetAndIndexCollection, checkChromaHealth } from './vectorstore/chroma.js';
+import { resetAndIndexCollection, checkChromaHealth, ChromaStoreOptions } from './vectorstore/chroma.js';
 import { saveChunks, getKeywordRetriever, invalidateCache } from './indexing/keywordIndex.js';
 import { getRerankedRetriever } from './retrievers/rerank.js';
 import { retrieverForUser, enforceAcl, UserSession } from './retrievers/secureRetriever.js';
@@ -55,7 +55,7 @@ For support questions regarding billing errors or account recovery, please email
 /**
  * OFFLINE: Ingest, split, tag, and index documents into Chroma and save BM25 chunks.
  */
-export async function index() {
+export async function index(options: ChromaStoreOptions = {}) {
   await ensureMockDocsExist();
 
   console.log('Loading documents from:', KB_DIR);
@@ -82,9 +82,9 @@ export async function index() {
   console.log('Splitting documents into chunks...');
   const chunks = await splitDocuments(taggedDocs, { chunkSize: 1000, chunkOverlap: 150 });
 
-  const collectionName = process.env.CHROMA_COLLECTION ?? 'kb_collection';
+  const collectionName = options.collectionName ?? process.env.CHROMA_COLLECTION ?? 'kb_collection';
   console.log(`Indexing ${chunks.length} chunks into Chroma collection '${collectionName}'...`);
-  await resetAndIndexCollection(chunks, { collectionName });
+  await resetAndIndexCollection(chunks, { ...options, collectionName });
 
   console.log('Persisting chunks for BM25 keyword index...');
   await saveChunks(chunks);
@@ -98,9 +98,9 @@ export async function index() {
 /**
  * ONLINE: Build the production-grade secure hybrid retriever.
  */
-export async function buildProductionRetriever(user: UserSession) {
+export async function buildProductionRetriever(user: UserSession, options: ChromaStoreOptions = {}) {
   // 1. Get user-scoped, tenant/ACL-filtered vector retriever
-  const vectorRetriever = await retrieverForUser(user, 20);
+  const vectorRetriever = await retrieverForUser(user, 20, options);
 
   // 2. Get lazy-loaded sparse keyword index retriever
   const keywordRetriever = await getKeywordRetriever(20);
@@ -118,7 +118,7 @@ export async function buildProductionRetriever(user: UserSession) {
 /**
  * ONLINE: Production-hardened entry point to ask questions.
  */
-export async function ask(rawQuestion: string, user: UserSession) {
+export async function ask(rawQuestion: string, user: UserSession, options: ChromaStoreOptions = {}) {
   const question = String(rawQuestion ?? '').trim();
   if (!question || question.length > 2000) {
     throw new Error('Invalid question: must be between 1 and 2000 characters.');
@@ -129,7 +129,7 @@ export async function ask(rawQuestion: string, user: UserSession) {
 
   return cachedAnswer(cacheScopeKey, async () => {
     // Build secure retriever
-    const retriever = await buildProductionRetriever(user);
+    const retriever = await buildProductionRetriever(user, options);
 
     // Limit concurrency and enforce resilience around the Graph state machine
     const out = await llmLimit(() =>
@@ -142,6 +142,9 @@ export async function ask(rawQuestion: string, user: UserSession) {
               metadata: { userId: user.id, tenant: user.tenantId },
               runName: 'user-question',
               recursionLimit: 8,
+              configurable: {
+                apiKey: options.openAIApiKey,
+              }
             }
           ),
         { label: 'corrective-rag-execution', timeoutMs: 30_000, retries: 2 }
