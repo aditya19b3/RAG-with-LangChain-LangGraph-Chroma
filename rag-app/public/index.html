@@ -29,10 +29,15 @@
           <span class="subtext">ChromaDB Powered AI Knowledge System</span>
         </div>
       </div>
-      <div class="header-status">
+      <div class="header-actions">
         <div id="chroma-status" class="status-badge status-connected">
           <span class="status-dot"></span>
           <span class="status-text">Chroma DB Active</span>
+        </div>
+        <div id="user-profile" class="user-profile hidden">
+          <img id="user-avatar" class="user-avatar" src="" alt="User avatar">
+          <span id="user-name" class="user-name"></span>
+          <button id="btn-logout" class="btn btn-secondary btn-sm" title="Sign out"><i class="fa-solid fa-right-from-bracket"></i></button>
         </div>
       </div>
     </header>
@@ -65,7 +70,10 @@
         <!-- Credentials Config Panel -->
         <section class="glass-panel credentials-panel">
           <h2 class="panel-title"><i class="fa-solid fa-key"></i> API Credentials</h2>
-          <p class="panel-desc">Provide your own credentials. Stored locally in your browser.</p>
+          <p class="panel-desc">Provide your own API keys. Encrypted and stored securely in the cloud.</p>
+          <div id="credentials-status" class="credentials-status hidden">
+            <i class="fa-solid fa-cloud-check"></i> <span id="credentials-status-text">Credentials saved</span>
+          </div>
           <div class="form-group" style="margin-bottom: 0.75rem;">
             <label for="settings-openai-key"><i class="fa-solid fa-lock"></i> OpenAI API Key</label>
             <input type="password" id="settings-openai-key" class="form-input" placeholder="sk-proj-...">
@@ -179,6 +187,11 @@
       <span id="toast-message">Notification message</span>
     </div>
   </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="auth.js"></script>
 
   <!-- Main JavaScript Logic -->
   <script src="app.js"></script>

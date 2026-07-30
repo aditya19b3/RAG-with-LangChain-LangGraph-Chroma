@@ -8,6 +8,12 @@ import { index, ask } from './index.js';
 import { UserSession } from './retrievers/secureRetriever.js';
 import { checkChromaHealth, getCollectionStats, ChromaStoreOptions } from './vectorstore/chroma.js';
 import { isLoadableExtension } from './loaders/loadDocuments.js';
+import { requireAuth } from './middleware/auth.js';
+import {
+  saveCredentials as dbSaveCredentials,
+  getCredentials as dbGetCredentials,
+  deleteCredentials as dbDeleteCredentials,
+} from './db/credentials.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,14 +53,45 @@ const upload = multer({
   },
 });
 
-function getCredentials(req: express.Request): ChromaStoreOptions {
-  return {
-    openAIApiKey: (req.headers['x-openai-api-key'] as string) || undefined,
-    url: (req.headers['x-chroma-url'] as string) || undefined,
-    apiKey: (req.headers['x-chroma-api-key'] as string) || undefined,
-    tenant: (req.headers['x-chroma-tenant'] as string) || undefined,
-    database: (req.headers['x-chroma-database'] as string) || undefined,
-  };
+/**
+ * Builds ChromaStoreOptions from request headers (BYOK), then falls back to
+ * Firestore-persisted credentials for the authenticated user, then env vars.
+ */
+async function getCredentials(req: express.Request): Promise<ChromaStoreOptions> {
+  // 1. Check request headers (direct BYOK from frontend)
+  const headerKey = req.headers['x-openai-api-key'] as string | undefined;
+  const headerUrl = req.headers['x-chroma-url'] as string | undefined;
+
+  if (headerKey || headerUrl) {
+    return {
+      openAIApiKey: headerKey || undefined,
+      url: headerUrl || undefined,
+      apiKey: (req.headers['x-chroma-api-key'] as string) || undefined,
+      tenant: (req.headers['x-chroma-tenant'] as string) || undefined,
+      database: (req.headers['x-chroma-database'] as string) || undefined,
+    };
+  }
+
+  // 2. Fall back to Firestore-persisted credentials for the authenticated user
+  if (req.user?.uid) {
+    try {
+      const saved = await dbGetCredentials(req.user.uid);
+      if (saved) {
+        return {
+          openAIApiKey: saved.openAIApiKey || undefined,
+          url: saved.chromaUrl || undefined,
+          apiKey: saved.chromaApiKey || undefined,
+          tenant: saved.chromaTenant || undefined,
+          database: saved.chromaDatabase || undefined,
+        };
+      }
+    } catch (err) {
+      console.warn('[Server] Could not load credentials from Firestore:', (err as Error).message);
+    }
+  }
+
+  // 3. Fall back to environment variables (handled by downstream functions)
+  return {};
 }
 
 async function runIndexing(options: ChromaStoreOptions = {}): Promise<{ chunkCount: number; collectionName: string }> {
@@ -63,13 +100,70 @@ async function runIndexing(options: ChromaStoreOptions = {}): Promise<{ chunkCou
   return { chunkCount: stats.count, collectionName: stats.collectionName };
 }
 
+// ========================
+//  Credential CRUD Routes
+// ========================
+
+app.get('/api/credentials', requireAuth, async (req, res) => {
+  try {
+    const creds = await dbGetCredentials(req.user!.uid);
+    if (!creds) {
+      return res.json({ success: true, credentials: null });
+    }
+    // Mask sensitive keys for frontend display
+    res.json({
+      success: true,
+      credentials: {
+        openAIApiKey: creds.openAIApiKey ? '••••' + creds.openAIApiKey.slice(-4) : null,
+        openAIApiKeySet: !!creds.openAIApiKey,
+        chromaUrl: creds.chromaUrl || null,
+        chromaApiKey: creds.chromaApiKey ? '••••' + creds.chromaApiKey.slice(-4) : null,
+        chromaApiKeySet: !!creds.chromaApiKey,
+        chromaTenant: creds.chromaTenant || null,
+        chromaDatabase: creds.chromaDatabase || null,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/credentials', requireAuth, async (req, res) => {
+  try {
+    const { openAIApiKey, chromaUrl, chromaApiKey, chromaTenant, chromaDatabase } = req.body;
+    await dbSaveCredentials(req.user!.uid, {
+      openAIApiKey,
+      chromaUrl,
+      chromaApiKey,
+      chromaTenant,
+      chromaDatabase,
+    });
+    res.json({ success: true, message: 'Credentials saved securely.' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/credentials', requireAuth, async (req, res) => {
+  try {
+    await dbDeleteCredentials(req.user!.uid);
+    res.json({ success: true, message: 'Credentials deleted.' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ========================
+//  Protected API Routes
+// ========================
+
 /**
  * GET /api/chroma/status
- * ChromaDB health and collection stats for the frontend / GUI verification.
+ * ChromaDB health and collection stats.
  */
-app.get('/api/chroma/status', async (req, res) => {
+app.get('/api/chroma/status', requireAuth, async (req, res) => {
   try {
-    const credentials = getCredentials(req);
+    const credentials = await getCredentials(req);
     const healthy = await checkChromaHealth(credentials);
     const stats = healthy ? await getCollectionStats(credentials) : { exists: false, count: 0, collectionName: 'kb_collection' };
 
@@ -84,7 +178,7 @@ app.get('/api/chroma/status', async (req, res) => {
   }
 });
 
-app.get('/api/documents', async (_req, res) => {
+app.get('/api/documents', requireAuth, async (_req, res) => {
   try {
     const files = await fs.readdir(KB_DIR);
     const documents = await Promise.all(
@@ -105,7 +199,7 @@ app.get('/api/documents', async (_req, res) => {
   }
 });
 
-app.post('/api/documents', (req, res) => {
+app.post('/api/documents', requireAuth, (req, res) => {
   upload.single('file')(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ success: false, error: err.message });
@@ -115,7 +209,7 @@ app.post('/api/documents', (req, res) => {
     }
 
     try {
-      const credentials = getCredentials(req);
+      const credentials = await getCredentials(req);
       const healthy = await checkChromaHealth(credentials);
       if (!healthy) {
         return res.status(503).json({
@@ -146,8 +240,8 @@ app.post('/api/documents', (req, res) => {
   });
 });
 
-app.delete('/api/documents/:filename', async (req, res) => {
-  const filename = req.params.filename;
+app.delete('/api/documents/:filename', requireAuth, async (req, res) => {
+  const filename = req.params.filename as string;
   try {
     const filePath = path.join(KB_DIR, filename);
     const resolvedPath = path.resolve(filePath);
@@ -157,7 +251,7 @@ app.delete('/api/documents/:filename', async (req, res) => {
 
     await fs.unlink(resolvedPath);
 
-    const credentials = getCredentials(req);
+    const credentials = await getCredentials(req);
     const healthy = await checkChromaHealth(credentials);
     if (healthy) {
       console.log(`[API Server] Document deleted: ${filename}. Re-syncing ChromaDB...`);
@@ -182,9 +276,9 @@ app.delete('/api/documents/:filename', async (req, res) => {
   }
 });
 
-app.post('/api/index', async (req, res) => {
+app.post('/api/index', requireAuth, async (req, res) => {
   try {
-    const credentials = getCredentials(req);
+    const credentials = await getCredentials(req);
     const healthy = await checkChromaHealth(credentials);
     if (!healthy) {
       return res.status(503).json({
@@ -206,7 +300,7 @@ app.post('/api/index', async (req, res) => {
   }
 });
 
-app.post('/api/query', async (req, res) => {
+app.post('/api/query', requireAuth, async (req, res) => {
   const { question, tenantId, role } = req.body;
 
   if (!question || typeof question !== 'string') {
@@ -214,13 +308,13 @@ app.post('/api/query', async (req, res) => {
   }
 
   const user: UserSession = {
-    id: 'web_user',
+    id: req.user?.uid ?? 'web_user',
     tenantId: tenantId || 'company_a',
     roles: role === 'admin' ? ['admin', 'member'] : role ? [role] : ['member'],
   };
 
   try {
-    const credentials = getCredentials(req);
+    const credentials = await getCredentials(req);
     const healthy = await checkChromaHealth(credentials);
     if (!healthy) {
       return res.status(503).json({

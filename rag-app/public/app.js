@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const inputChromaURL = document.getElementById('settings-chroma-url');
   const btnSaveCredentials = document.getElementById('btn-save-credentials');
   const btnClearCredentials = document.getElementById('btn-clear-credentials');
+  const credentialsStatus = document.getElementById('credentials-status');
+  const credentialsStatusText = document.getElementById('credentials-status-text');
   
   const btnReindex = document.getElementById('btn-reindex');
   const docCount = document.getElementById('doc-count');
@@ -33,25 +35,185 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const suggestionChips = document.querySelectorAll('.chip');
 
-  // Base API URL (relative since we serve frontend from Express)
+  const userProfile = document.getElementById('user-profile');
+  const userAvatar = document.getElementById('user-avatar');
+  const userName = document.getElementById('user-name');
+  const btnLogout = document.getElementById('btn-logout');
+
+  // Base API URL (relative since we serve frontend from Express/Vercel)
   const API_BASE = '';
 
-  // Load and Get Dynamic Credentials from LocalStorage
-  function loadCredentials() {
-    inputOpenAIKey.value = localStorage.getItem('openai_api_key') || '';
-    inputChromaURL.value = localStorage.getItem('chroma_url') || '';
-  }
+  // ========================
+  //  Authentication Guard
+  // ========================
 
-  function getCredentialHeaders() {
-    const headers = {};
-    const openAIKey = localStorage.getItem('openai_api_key');
-    const chromaURL = localStorage.getItem('chroma_url');
-    
-    if (openAIKey) headers['X-OpenAI-API-Key'] = openAIKey;
-    if (chromaURL) headers['X-Chroma-URL'] = chromaURL;
-    
+  let currentUser = null;
+
+  auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      // Not signed in — redirect to login
+      window.location.href = '/public/login.html';
+      return;
+    }
+
+    currentUser = user;
+
+    // Show user profile in header
+    userProfile.classList.remove('hidden');
+    userName.textContent = user.displayName || user.email || 'User';
+    if (user.photoURL) {
+      userAvatar.src = user.photoURL;
+      userAvatar.style.display = 'block';
+    } else {
+      userAvatar.style.display = 'none';
+    }
+
+    // Load cloud credentials and app data
+    await loadCloudCredentials();
+    fetchChromaStatus();
+    fetchDocuments();
+  });
+
+  // Logout
+  btnLogout.addEventListener('click', async () => {
+    try {
+      await signOut();
+      // onAuthStateChanged will handle redirect
+    } catch (err) {
+      showToast('Failed to sign out: ' + err.message, 'error');
+    }
+  });
+
+  // ========================
+  //  Auth + Credential Headers
+  // ========================
+
+  /**
+   * Returns combined auth + credential headers for all API requests.
+   */
+  async function getAllHeaders(extraHeaders = {}) {
+    const headers = { ...extraHeaders };
+
+    // Auth token
+    const authHeaders = await getAuthHeaders();
+    Object.assign(headers, authHeaders);
+
     return headers;
   }
+
+  // ========================
+  //  Cloud Credential Management
+  // ========================
+
+  async function loadCloudCredentials() {
+    try {
+      const headers = await getAllHeaders();
+      const res = await fetch(`${API_BASE}/api/credentials`, { headers });
+
+      if (res.status === 401) {
+        // Token expired — force re-auth
+        await signOut();
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success && data.credentials) {
+        const c = data.credentials;
+        // Show masked values as placeholders, don't expose real keys
+        if (c.openAIApiKeySet) {
+          inputOpenAIKey.placeholder = c.openAIApiKey; // e.g. "••••abcd"
+          inputOpenAIKey.value = '';
+        }
+        if (c.chromaUrl) {
+          inputChromaURL.value = c.chromaUrl;
+        }
+
+        credentialsStatus.classList.remove('hidden');
+        credentialsStatusText.textContent = 'Credentials saved in cloud';
+      }
+    } catch (err) {
+      console.warn('Could not load cloud credentials:', err);
+    }
+  }
+
+  async function saveCloudCredentials() {
+    try {
+      const headers = await getAllHeaders({ 'Content-Type': 'application/json' });
+      const body = {};
+
+      // Only send non-empty values
+      if (inputOpenAIKey.value.trim()) body.openAIApiKey = inputOpenAIKey.value.trim();
+      if (inputChromaURL.value.trim()) body.chromaUrl = inputChromaURL.value.trim();
+
+      if (Object.keys(body).length === 0) {
+        showToast('Enter at least one credential to save.', 'error');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/api/credentials`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (res.status === 401) {
+        await signOut();
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        showToast('Credentials saved securely in the cloud!', 'success');
+        credentialsStatus.classList.remove('hidden');
+        credentialsStatusText.textContent = 'Credentials saved in cloud';
+        // Clear the raw key from the input for security
+        if (inputOpenAIKey.value.trim()) {
+          inputOpenAIKey.placeholder = '••••' + inputOpenAIKey.value.trim().slice(-4);
+          inputOpenAIKey.value = '';
+        }
+        fetchChromaStatus();
+        fetchDocuments();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err) {
+      showToast('Failed to save credentials: ' + err.message, 'error');
+    }
+  }
+
+  async function clearCloudCredentials() {
+    try {
+      const headers = await getAllHeaders();
+      const res = await fetch(`${API_BASE}/api/credentials`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (res.status === 401) {
+        await signOut();
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        inputOpenAIKey.value = '';
+        inputOpenAIKey.placeholder = 'sk-proj-...';
+        inputChromaURL.value = '';
+        credentialsStatus.classList.add('hidden');
+        showToast('Credentials deleted from cloud.', 'info');
+        fetchChromaStatus();
+        fetchDocuments();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err) {
+      showToast('Failed to clear credentials: ' + err.message, 'error');
+    }
+  }
+
+  // ========================
+  //  Utilities
+  // ========================
 
   // Toast Notifications
   let toastTimeout;
@@ -106,12 +268,21 @@ document.addEventListener('DOMContentLoaded', () => {
       .join('');
   }
 
+  // ========================
+  //  API Communication
+  // ========================
+
   // Check ChromaDB connection status
   async function fetchChromaStatus() {
     try {
-      const res = await fetch(`${API_BASE}/api/chroma/status`, {
-        headers: getCredentialHeaders()
-      });
+      const headers = await getAllHeaders();
+      const res = await fetch(`${API_BASE}/api/chroma/status`, { headers });
+
+      if (res.status === 401) {
+        await signOut();
+        return;
+      }
+
       const data = await res.json();
 
       if (!data.success) throw new Error(data.error);
@@ -136,9 +307,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchDocuments() {
     try {
-      const res = await fetch(`${API_BASE}/api/documents`, {
-        headers: getCredentialHeaders()
-      });
+      const headers = await getAllHeaders();
+      const res = await fetch(`${API_BASE}/api/documents`, { headers });
+
+      if (res.status === 401) {
+        await signOut();
+        return;
+      }
+
       const data = await res.json();
       
       if (!data.success) throw new Error(data.error);
@@ -203,9 +379,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Delete Document
   async function deleteDocument(encodedFilename) {
     try {
+      const headers = await getAllHeaders();
       const res = await fetch(`${API_BASE}/api/documents/${encodedFilename}`, {
         method: 'DELETE',
-        headers: getCredentialHeaders()
+        headers,
       });
       const data = await res.json();
       
@@ -230,10 +407,12 @@ document.addEventListener('DOMContentLoaded', () => {
     chromaStatus.querySelector('.status-text').textContent = 'Indexing...';
 
     try {
+      const headers = await getAllHeaders();
+      // Don't set Content-Type for FormData — browser auto-sets with boundary
       const res = await fetch(`${API_BASE}/api/documents`, {
         method: 'POST',
         body: formData,
-        headers: getCredentialHeaders()
+        headers,
       });
       const data = await res.json();
 
@@ -260,9 +439,10 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Re-indexing database with new document chunks...', 'info');
 
     try {
+      const headers = await getAllHeaders();
       const res = await fetch(`${API_BASE}/api/index`, {
         method: 'POST',
-        headers: getCredentialHeaders()
+        headers,
       });
       const data = await res.json();
 
@@ -303,12 +483,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const startTime = performance.now();
+      const headers = await getAllHeaders({ 'Content-Type': 'application/json' });
       const res = await fetch(`${API_BASE}/api/query`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getCredentialHeaders()
-        },
+        headers,
         body: JSON.stringify(payload),
       });
       const data = await res.json();
@@ -403,27 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Credentials event listeners
-  btnSaveCredentials.addEventListener('click', () => {
-    localStorage.setItem('openai_api_key', inputOpenAIKey.value.trim());
-    localStorage.setItem('chroma_url', inputChromaURL.value.trim());
-    showToast('Credentials saved successfully!', 'success');
-    fetchChromaStatus();
-    fetchDocuments();
-  });
-
-  btnClearCredentials.addEventListener('click', () => {
-    localStorage.removeItem('openai_api_key');
-    localStorage.removeItem('chroma_url');
-    inputOpenAIKey.value = '';
-    inputChromaURL.value = '';
-    showToast('Credentials cleared!', 'info');
-    fetchChromaStatus();
-    fetchDocuments();
-  });
-
-  // Initial Load
-  loadCredentials();
-  fetchChromaStatus();
-  fetchDocuments();
+  // Credentials event listeners — now cloud-backed
+  btnSaveCredentials.addEventListener('click', saveCloudCredentials);
+  btnClearCredentials.addEventListener('click', clearCloudCredentials);
 });
