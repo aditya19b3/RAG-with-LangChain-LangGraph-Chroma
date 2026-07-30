@@ -2,12 +2,12 @@
 // Replace these values with your Firebase project config from the Firebase Console.
 
 const firebaseConfig = {
-  apiKey: "YOUR_FIREBASE_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCLEpfTJiPlDGWjTaHnLiY6uhzm4cQ_IqI",
+  authDomain: "rag-project-29066.firebaseapp.com",
+  projectId: "rag-project-29066",
+  storageBucket: "rag-project-29066.firebasestorage.app",
+  messagingSenderId: "128922456116",
+  appId: "1:128922456116:web:922d11258f1f9f97947a61"
 };
 
 // Initialize Firebase
