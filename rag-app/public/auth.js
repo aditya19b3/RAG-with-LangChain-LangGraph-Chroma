@@ -1,6 +1,13 @@
 // Firebase Auth Configuration & Utilities
 // Replace these values with your Firebase project config from the Firebase Console.
 
+// IMPORTANT
+//No matter which approach you use,
+//the Firebase config will always be visible to the end user — 
+// it has to be, because the browser needs it to talk to Firebase. 
+// Moving it to env vars only hides it from your git repo, not from the browser
+
+
 const firebaseConfig = {
   apiKey: "AIzaSyCLEpfTJiPlDGWjTaHnLiY6uhzm4cQ_IqI",
   authDomain: "rag-project-29066.firebaseapp.com",

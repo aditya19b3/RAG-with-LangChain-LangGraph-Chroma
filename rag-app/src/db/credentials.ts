@@ -1,7 +1,14 @@
-import { getDb } from './firestore.js';
-import { encrypt, decrypt, EncryptedData } from '../utils/encryption.js';
+import { EncryptedData } from '../utils/encryption.js';
 
 const COLLECTION = 'user_credentials';
+
+/**
+ * Check whether Firebase/Firestore is configured.
+ */
+const isFirestoreConfigured =
+  !!process.env.FIREBASE_PROJECT_ID &&
+  !!process.env.FIREBASE_CLIENT_EMAIL &&
+  !!process.env.FIREBASE_PRIVATE_KEY;
 
 export interface UserCredentials {
   openAIApiKey?: string;
@@ -20,10 +27,21 @@ interface StoredCredentials {
   updatedAt: string;
 }
 
+// In-memory fallback when Firestore is not configured
+const memoryStore = new Map<string, UserCredentials>();
+
 /**
  * Saves or updates credentials for a user. Sensitive fields are encrypted.
  */
 export async function saveCredentials(uid: string, creds: UserCredentials): Promise<void> {
+  if (!isFirestoreConfigured) {
+    // Dev mode: store in memory
+    memoryStore.set(uid, { ...memoryStore.get(uid), ...creds });
+    return;
+  }
+
+  const { getDb } = await import('./firestore.js');
+  const { encrypt } = await import('../utils/encryption.js');
   const db = getDb();
   const doc: StoredCredentials = {
     updatedAt: new Date().toISOString(),
@@ -47,6 +65,13 @@ export async function saveCredentials(uid: string, creds: UserCredentials): Prom
  * Retrieves and decrypts credentials for a user. Returns null if none exist.
  */
 export async function getCredentials(uid: string): Promise<UserCredentials | null> {
+  if (!isFirestoreConfigured) {
+    // Dev mode: read from memory
+    return memoryStore.get(uid) ?? null;
+  }
+
+  const { getDb } = await import('./firestore.js');
+  const { decrypt } = await import('../utils/encryption.js');
   const db = getDb();
   const snap = await db.collection(COLLECTION).doc(uid).get();
 
@@ -80,6 +105,13 @@ export async function getCredentials(uid: string): Promise<UserCredentials | nul
  * Deletes all stored credentials for a user.
  */
 export async function deleteCredentials(uid: string): Promise<void> {
+  if (!isFirestoreConfigured) {
+    memoryStore.delete(uid);
+    return;
+  }
+
+  const { getDb } = await import('./firestore.js');
   const db = getDb();
   await db.collection(COLLECTION).doc(uid).delete();
 }
+

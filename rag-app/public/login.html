@@ -64,6 +64,20 @@
       const loginLoading = document.getElementById('login-loading');
 
       // If already signed in, redirect to main app
+      // Wait for Firebase to fully resolve persisted auth state before redirecting
+      async function checkExistingAuth() {
+        try {
+          await auth.authStateReady();
+        } catch {
+          // authStateReady not available on older compat SDK — small delay fallback
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        if (auth.currentUser) {
+          window.location.href = '/index.html';
+        }
+      }
+      checkExistingAuth();
+
       auth.onAuthStateChanged((user) => {
         if (user) {
           window.location.href = '/index.html';

@@ -48,14 +48,33 @@ document.addEventListener('DOMContentLoaded', () => {
   // ========================
 
   let currentUser = null;
+  let authInitialized = false;
 
   auth.onAuthStateChanged(async (user) => {
     if (!user) {
-      // Not signed in — redirect to login
+      // Only redirect after Firebase has fully resolved the persisted session.
+      // The first onAuthStateChanged fires before the SDK restores the session
+      // from IndexedDB, so we must wait for authStateReady() first.
+      if (!authInitialized) {
+        try {
+          await auth.authStateReady();
+        } catch {
+          // authStateReady not available on older compat SDK — small delay fallback
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        authInitialized = true;
+        // Re-check after the SDK has settled
+        if (auth.currentUser) {
+          // Session was restored — the listener will fire again with the real user
+          return;
+        }
+      }
+      // Genuinely not signed in — redirect to login
       window.location.href = '/login.html';
       return;
     }
 
+    authInitialized = true;
     currentUser = user;
 
     // Show user profile in header
