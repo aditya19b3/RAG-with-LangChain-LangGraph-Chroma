@@ -47,37 +47,45 @@ document.addEventListener('DOMContentLoaded', () => {
   //  Authentication Guard
   // ========================
 
-  let currentUser = null;
-  let authInitialized = false;
+  // Synchronous check: redirect immediately if no stored session.
+  // This prevents the flash of the main app before redirect.
+  if (!isLoggedIn()) {
+    window.location.href = '/login.html';
+    return; // Stop all further initialization
+  }
 
+  // Show stored user info immediately (from localStorage) to avoid flicker
+  const storedUser = getStoredUser();
+  if (storedUser) {
+    userProfile.classList.remove('hidden');
+    userName.textContent = storedUser.displayName || storedUser.email || 'User';
+    if (storedUser.photoURL) {
+      userAvatar.src = storedUser.photoURL;
+      userAvatar.style.display = 'block';
+    } else {
+      userAvatar.style.display = 'none';
+    }
+  }
+
+  let currentUser = null;
+
+  // Firebase auth listener: confirms the session and loads app data.
+  // If the stored session was stale (e.g. token expired), this will fire
+  // with null and redirect to login.
   auth.onAuthStateChanged(async (user) => {
     if (!user) {
-      // Only redirect after Firebase has fully resolved the persisted session.
-      // The first onAuthStateChanged fires before the SDK restores the session
-      // from IndexedDB, so we must wait for authStateReady() first.
-      if (!authInitialized) {
-        try {
-          await auth.authStateReady();
-        } catch {
-          // authStateReady not available on older compat SDK — small delay fallback
-          await new Promise((r) => setTimeout(r, 500));
-        }
-        authInitialized = true;
-        // Re-check after the SDK has settled
-        if (auth.currentUser) {
-          // Session was restored — the listener will fire again with the real user
-          return;
-        }
-      }
-      // Genuinely not signed in — redirect to login
+      // Firebase confirmed no valid session — clear stale localStorage and redirect
+      clearAuthSession();
       window.location.href = '/login.html';
       return;
     }
 
-    authInitialized = true;
     currentUser = user;
 
-    // Show user profile in header
+    // Update stored session with fresh data
+    saveAuthSession(user);
+
+    // Update user profile in header with live Firebase data
     userProfile.classList.remove('hidden');
     userName.textContent = user.displayName || user.email || 'User';
     if (user.photoURL) {

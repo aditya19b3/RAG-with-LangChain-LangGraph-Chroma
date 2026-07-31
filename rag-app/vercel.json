@@ -16,11 +16,31 @@
       "dest": "src/server.ts"
     },
     {
+      "src": "/login.html",
+      "dest": "/public/login.html"
+    },
+    {
+      "src": "/auth.js",
+      "dest": "/public/auth.js"
+    },
+    {
+      "src": "/app.js",
+      "dest": "/public/app.js"
+    },
+    {
+      "src": "/style.css",
+      "dest": "/public/style.css"
+    },
+    {
+      "src": "/index.html",
+      "dest": "/public/index.html"
+    },
+    {
       "handle": "filesystem"
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/public/index.html"
     }
   ]
 }

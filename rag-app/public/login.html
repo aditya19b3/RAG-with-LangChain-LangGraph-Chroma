@@ -63,23 +63,16 @@
       const loginError = document.getElementById('login-error');
       const loginLoading = document.getElementById('login-loading');
 
-      // If already signed in, redirect to main app
-      // Wait for Firebase to fully resolve persisted auth state before redirecting
-      async function checkExistingAuth() {
-        try {
-          await auth.authStateReady();
-        } catch {
-          // authStateReady not available on older compat SDK — small delay fallback
-          await new Promise((r) => setTimeout(r, 500));
-        }
-        if (auth.currentUser) {
-          window.location.href = '/index.html';
-        }
+      // Synchronous check: if already logged in, redirect immediately
+      if (isLoggedIn()) {
+        window.location.href = '/index.html';
+        return;
       }
-      checkExistingAuth();
 
+      // Firebase listener: if Firebase restores a session, save and redirect
       auth.onAuthStateChanged((user) => {
         if (user) {
+          saveAuthSession(user);
           window.location.href = '/index.html';
         }
       });
@@ -91,7 +84,8 @@
 
         try {
           await signInWithGoogle();
-          // onAuthStateChanged will handle the redirect
+          // signInWithGoogle() saves to localStorage automatically.
+          // onAuthStateChanged will handle the redirect.
         } catch (error) {
           console.error('Google Sign-In failed:', error);
           loginError.textContent = error.message || 'Sign-in failed. Please try again.';
