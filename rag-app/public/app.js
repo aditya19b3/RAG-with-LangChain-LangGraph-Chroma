@@ -158,8 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(`${API_BASE}/api/credentials`, { headers });
 
       if (res.status === 401) {
-        // Token expired — force re-auth
-        await signOut();
+        console.warn('Could not load credentials: API returned 401.');
         return;
       }
 
@@ -204,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (res.status === 401) {
-        await signOut();
+        showToast('Session error (401). Please try again.', 'error');
         return;
       }
 
@@ -237,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (res.status === 401) {
-        await signOut();
+        showToast('Session error (401).', 'error');
         return;
       }
 
@@ -326,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(`${API_BASE}/api/chroma/status`, { headers });
 
       if (res.status === 401) {
-        await signOut();
+        console.warn('Chroma status check returned 401.');
         return;
       }
 
@@ -358,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch(`${API_BASE}/api/documents`, { headers });
 
       if (res.status === 401) {
-        await signOut();
+        console.warn('Fetch documents returned 401.');
         return;
       }
 
