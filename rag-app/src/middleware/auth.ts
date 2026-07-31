@@ -21,7 +21,7 @@ declare global {
  * Determine the Firebase project ID from env vars or the known client config.
  * The projectId is sufficient for verifying ID tokens — Firebase Admin uses
  * Google's public keys for JWT signature verification and only needs the
- * projectId to validate the audience (aud) claim.
+ * projectId to validate the audience (aud) claim. 
  */
 const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'rag-project-29066';
 

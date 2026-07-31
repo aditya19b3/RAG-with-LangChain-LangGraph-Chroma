@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let firebaseResolved = false;
   let pendingRedirectTimer = null;
 
-  // Firebase auth listener: confirms the session and loads app data.
+  // Firebase auth listener: confirms the session and loads app data. 
   auth.onAuthStateChanged(async (user) => {
     if (!user) {
       if (!firebaseResolved && isLoggedIn()) {
