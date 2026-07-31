@@ -68,16 +68,36 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let currentUser = null;
+  let firebaseResolved = false;
+  let pendingRedirectTimer = null;
 
   // Firebase auth listener: confirms the session and loads app data.
-  // If the stored session was stale (e.g. token expired), this will fire
-  // with null and redirect to login.
   auth.onAuthStateChanged(async (user) => {
     if (!user) {
-      // Firebase confirmed no valid session — clear stale localStorage and redirect
+      if (!firebaseResolved && isLoggedIn()) {
+        // First callback with null, but we have a localStorage session.
+        // Firebase hasn't finished restoring from IndexedDB yet — wait before redirecting.
+        // If a real user arrives (next callback), we cancel this timer.
+        if (!pendingRedirectTimer) {
+          pendingRedirectTimer = setTimeout(() => {
+            // Grace period expired and still no user — session is genuinely invalid
+            clearAuthSession();
+            window.location.href = '/login.html';
+          }, 3000);
+        }
+        return;
+      }
+      // Firebase has resolved before OR no localStorage session — redirect immediately
       clearAuthSession();
       window.location.href = '/login.html';
       return;
+    }
+
+    // User confirmed — cancel any pending redirect
+    firebaseResolved = true;
+    if (pendingRedirectTimer) {
+      clearTimeout(pendingRedirectTimer);
+      pendingRedirectTimer = null;
     }
 
     currentUser = user;
